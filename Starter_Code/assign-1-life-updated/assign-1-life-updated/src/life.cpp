@@ -50,7 +50,8 @@ int main() {
     LifeDisplay display;
     display.setTitle("Game of Life");
     welcome();
-    if (string fileName = promptConfigFile()) {
+    string fileName = promptConfigFile();
+    if (fileName != "") {
         world = readConfigFile(fileName);
     }
     return 0;
