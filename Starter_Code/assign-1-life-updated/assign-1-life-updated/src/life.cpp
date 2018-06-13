@@ -21,7 +21,7 @@ using namespace std;
  * Introduces the user to the Game of Life and its rules.
  */
 static void welcome() {
-    cout << "Welcome to the game of Life, a simulation of the lifecycle of a bacteria colony." << endl;
+    cout << "Hello! Welcome to the game of Life, a simulation of the lifecycle of a bacteria colony." << endl;
     cout << "Cells live and die by the following rules:" << endl << endl;
     cout << "\tA cell with 1 or fewer neighbors dies of loneliness" << endl;
     cout << "\tLocations with 2 neighbors remain stable" << endl;
