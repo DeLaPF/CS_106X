@@ -8,8 +8,9 @@
 using namespace std;
 
 #include "console.h" // required of all files that contain the main function
-#include "simpio.h"  // for getLine
 #include "gevents.h" // for mouse event detection
+#include "grid.h"
+#include "simpio.h"  // for getLine
 #include "strlib.h"
 
 #include "life-constants.h"  // for kMaxAge
@@ -31,14 +32,26 @@ static void welcome() {
     getLine("Hit [enter] to continue....   ");
 }
 
+static Grid<int> readConfigFile(string fileName) {
+
+}
+
+static string promptConfigFile() {
+    return getLine("Please enter a config file [press enter if no Config]: ");
+}
+
 /**
  * Function: main
  * --------------
  * Provides the entry point of the entire program.
  */
 int main() {
+    Grid<int> world;
     LifeDisplay display;
     display.setTitle("Game of Life");
     welcome();
+    if (string fileName = promptConfigFile()) {
+        world = readConfigFile(fileName);
+    }
     return 0;
 }
