@@ -8,6 +8,7 @@
 using namespace std;
 
 #include "console.h" // required of all files that contain the main function
+#include "filelib.h"
 #include "gevents.h" // for mouse event detection
 #include "grid.h"
 #include "simpio.h"  // for getLine
@@ -32,12 +33,50 @@ static void welcome() {
     getLine("Hit [enter] to continue....   ");
 }
 
-static Grid<int> readConfigFile(string fileName) {
+static string promptConfigFile() {
+    string fileName = getLine("Please enter a config file [press enter if no Config]:");
+    while (!fileExists(fileName) || fileName != "") { //unsure why this does not work gets trapped in loop
+        fileName = getLine("Error: File does not exist. Please enter a config file [press enter if no Config]: ");
+    }
 
+    return fileName;
 }
 
-static string promptConfigFile() {
-    return getLine("Please enter a config file [press enter if no Config]: ");
+static Grid<int> readConfigFile(string fileName) {
+    Grid<int> world(3, 3);
+    string fileContents = readEntireFile(fileName);
+    int k = 0;
+
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            if (fileContents[k] == 'X') {
+                world[j][i] = 1;
+            } else {
+                world[j][i] = 0;
+            }
+            k++;
+        }
+    }
+
+    return world;
+}
+
+static Grid<int> generateWorld() {
+    Grid<int> world(3, 3);
+    int randInt;
+
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            randInt = rand() % 2;
+            if (randInt == 0) {
+                world[j][i] = 1;
+            } else {
+                world[j][i] = 0;
+            }
+        }
+    }
+
+    return world;
 }
 
 /**
@@ -53,6 +92,9 @@ int main() {
     string fileName = promptConfigFile();
     if (fileName != "") {
         world = readConfigFile(fileName);
+    } else {
+        world = generateWorld();
     }
+    cout << world; //test output
     return 0;
 }
