@@ -34,9 +34,13 @@ static void welcome() {
 }
 
 static string promptConfigFile() {
-    string fileName = getLine("Please enter a config file [press enter if no Config]:");
-    while (!fileExists(fileName) || fileName != "") { //unsure why this does not work gets trapped in loop
+    string fileName = getLine("Please enter a config file [press enter if no Config]: ");
+    string dir = getCurrentDirectory();
+    fileName = dir + '\\' + fileName;
+    while (fileExists(fileName) || fileName != "") { //unsure why this does not work gets trapped in loop
         fileName = getLine("Error: File does not exist. Please enter a config file [press enter if no Config]: ");
+        fileName = dir + '\\' + fileName;
+        cout << fileName << endl;
     }
 
     return fileName;
