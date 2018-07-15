@@ -94,8 +94,5 @@ int main() {
     readConfigFile(world);
     displayWorld(display, world);
 
-    int x;
-    cin >> x;
-
     return 0;
 }
