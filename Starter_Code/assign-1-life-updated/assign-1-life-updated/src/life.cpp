@@ -33,54 +33,51 @@ static void welcome() {
     getLine("Hit [enter] to continue....   ");
 }
 
-static string promptConfigFile() {
-    string fileName = getLine("Please enter a config file [press enter if no Config]: ");
-    string dir = getCurrentDirectory();
-    fileName = dir + '\\' + fileName;
-    while (fileExists(fileName) || fileName != "") { //unsure why this does not work gets trapped in loop
-        fileName = getLine("Error: File does not exist. Please enter a config file [press enter if no Config]: ");
-        fileName = dir + '\\' + fileName;
-        cout << fileName << endl;
-    }
+static void readConfigFile(Grid<int> &world) {
+    ifstream infile;
+    promptUserForFile(infile, "File?");
+    Vector<string> lines;
+    readEntireFile(infile, lines);
+    infile.close();
 
-    return fileName;
-}
-
-static Grid<int> readConfigFile(string fileName) {
-    Grid<int> world(3, 3);
-    string fileContents = readEntireFile(fileName);
-    int k = 0;
-
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            if (fileContents[k] == 'X') {
-                world[j][i] = 1;
-            } else {
-                world[j][i] = 0;
-            }
-            k++;
+    int i = 0;
+    while (true) {
+        if (lines[i][0] != '#') {
+            break;
         }
+        i++;
     }
+    int rows = stringToInteger(lines[i++]);
+    int cols = stringToInteger(lines[i++]);
 
-    return world;
-}
+    world.resize(rows, cols);
 
-static Grid<int> generateWorld() {
-    Grid<int> world(3, 3);
-    int randInt;
-
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            randInt = rand() % 2;
-            if (randInt == 0) {
-                world[j][i] = 1;
+    for (int row = 0; i + row < lines.size(); row++) {
+        string rowLine = lines[i + row];
+        for (int col = 0; col < cols; col++) {
+            if (rowLine[col] == '-') {
+                world[row][col] = 0;
             } else {
-                world[j][i] = 0;
+                world[row][col] = 1;
             }
         }
     }
+}
 
-    return world;
+static void displayWorld(LifeDisplay &display, const Grid<int> &world) {
+    int rows = world.numRows();
+    int cols = world.numCols();
+
+    display.setDimensions(rows, cols);
+
+    for (int row = 0; row < rows; row++) {
+        for (int col = 0; col < cols; col++) {
+            int age = world[row][col];
+            display.drawCellAt(row, col, age);
+        }
+    }
+
+    display.repaint();
 }
 
 /**
@@ -89,16 +86,16 @@ static Grid<int> generateWorld() {
  * Provides the entry point of the entire program.
  */
 int main() {
-    Grid<int> world;
     LifeDisplay display;
     display.setTitle("Game of Life");
     welcome();
-    string fileName = promptConfigFile();
-    if (fileName != "") {
-        world = readConfigFile(fileName);
-    } else {
-        world = generateWorld();
-    }
-    cout << world; //test output
+
+    Grid<int> world;
+    readConfigFile(world);
+    displayWorld(display, world);
+
+    int x;
+    cin >> x;
+
     return 0;
 }
