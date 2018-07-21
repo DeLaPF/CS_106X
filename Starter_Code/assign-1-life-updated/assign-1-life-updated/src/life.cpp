@@ -5,6 +5,7 @@
  */
 
 #include <iostream>  // for cout
+#include <functional> // for function
 using namespace std;
 
 #include "console.h" // required of all files that contain the main function
@@ -23,6 +24,9 @@ using namespace std;
 #define HOSPITABLE_THRESHOLD (3)
 #define OVERCROWDED_THRESHOLD (4)
 #define DEFAULT_WORLD_SIZE (25)
+#define FAST_ANIM (125)
+#define MEDIUM_ANIM (250)
+#define SLOW_ANIM (500)
 
 /**
  * Function: welcome
@@ -232,10 +236,10 @@ static int countNeighbors(const Grid<int> &world, int r, int c) {
  * --------------
  * Updates the "world" array to the new generation (the new states of the cells).
  */
-static Grid<int> updateWorld(const Grid<int> &world, Grid<int> &upWorld) {
+static Grid<int> updateWorld(const Grid<int> &world) {
     int rows = world.numRows();
     int cols = world.numCols();
-    upWorld = world;
+    Grid<int> upWorld = world;
 
     for (int r = 0; r < rows; r++) {
         for (int c = 0; c < cols; c++) {
@@ -256,23 +260,61 @@ static Grid<int> updateWorld(const Grid<int> &world, Grid<int> &upWorld) {
 }
 
 /**
+ * Function: areGridsEqual
+ * -----------------
+ * Compares the updating generation to see if they are stable or alternating.
+ */
+static bool areGridsEqual(const Grid<int> &g1, const Grid<int> &g2, const function<bool (int, int)> &isEqual) {
+    if (g1.numRows() != g2.numRows() || g1.numCols() != g2.numCols()) {
+        return false;
+    }
+
+    for (int r = 0; r < g1.numRows() - 1; r++) {
+        for (int c = 0; c < g1.numCols(); c++) {
+            if (!isEqual(g1[r][c], g2[r][c])) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Function: isStable
+ * -----------------
+ * Implementation of areGridsEqual to compare the updating generation to see if they are stable or alternating.
+ */
+static bool isStable(const Grid<int> &world) {
+    Grid<int> upWorld = updateWorld(world);
+    if (areGridsEqual(world, upWorld, [](int v1, int v2) {
+    return (v1 > 0 && v2 > 0) || (v1 == 0 && v2 == 0);
+    }) || areGridsEqual(world, updateWorld(upWorld), [](int v1, int v2) {
+        return (v1 > 0 && v2 > 0) || (v1 == 0 && v2 == 0);
+    })) {
+        return true;
+    }
+    return false;
+}
+
+/**
  * Function: runAnimation
  * -----------------
  * Runs the entire animation for the program.
  */
-static void runAnimation(LifeDisplay &display, Grid<int> &world, Grid<int> &upWorld, int animSpeed) {
+static void runAnimation(LifeDisplay &display, Grid<int> &world, int animSpeed) {
     bool isManual = false;
     displayWorld(display, world);
 
     switch (animSpeed) {
     case 1:
-        animSpeed = 0;
+        animSpeed = FAST_ANIM;
         break;
     case 2:
-        animSpeed = 50;
+        animSpeed = MEDIUM_ANIM;
         break;
     case 3:
-        animSpeed = 100;
+        animSpeed = SLOW_ANIM;
         break;
     case 4:
         isManual = true;
@@ -289,11 +331,13 @@ static void runAnimation(LifeDisplay &display, Grid<int> &world, Grid<int> &upWo
             event = waitForEvent(TIMER_EVENT + MOUSE_EVENT);
         }
 
-        if (event.getEventClass() == TIMER_EVENT || event.getEventClass() == KEY_EVENT) {
-            world = updateWorld(world, upWorld);
-            displayWorld(display, world);
-        } else if (event.getEventType() == MOUSE_PRESSED) {
+        if (isStable(world) || event.getEventType() == MOUSE_PRESSED) {
             break;
+        }
+
+        if (event.getEventClass() == TIMER_EVENT || event.getEventClass() == KEY_EVENT) {
+            world = updateWorld(world);
+            displayWorld(display, world);
         }
     }
     timer.stop();
@@ -309,15 +353,20 @@ int main() {
     display.setTitle("Game of Life");
     welcome();
     Grid<int> world;
-    Grid<int> upWorld;
 
-    if (hasFile()) {
-        readConfigFile(world);
-    } else {
-        world = randGenWorld();
+    while (true) {
+        if (hasFile()) {
+            readConfigFile(world);
+        } else {
+            world = randGenWorld();
+        }
+
+        runAnimation(display, world, getAnimSpeed());
+
+        if (!getYesOrNo("Would you like to run this program again?")) {
+            break;
+        }
     }
-
-    runAnimation(display, world, upWorld, getAnimSpeed());
 
     return 0;
 }
