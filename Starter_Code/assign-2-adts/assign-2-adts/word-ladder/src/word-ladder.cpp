@@ -9,8 +9,12 @@ using namespace std;
 
 #include "console.h"
 #include "lexicon.h"
+#include "queue.h"
 #include "strlib.h"
 #include "simpio.h"
+
+#define ALPHABET_SIZE (26)
+#define LOWER_CASE_A (97)
 
 static string getWord(const Lexicon& english, const string& prompt) {
     while (true) {
@@ -20,8 +24,46 @@ static string getWord(const Lexicon& english, const string& prompt) {
     }
 }
 
-static void generateLadder(const Lexicon& english, const string& start, const string& end) {
-    cout << "Here's where you'll search for a word ladder connecting \"" << start << "\" to \"" << end << "." << endl;
+static Vector<string> generateLadder(const Lexicon& english, const string& start, const string& end) {
+    Vector<string> wordLadder;
+    wordLadder.add(start);
+
+    Queue<Vector<string>> possiblePaths;
+    possiblePaths.enqueue(wordLadder);
+
+    Set<string> visited;
+    visited.add(start);
+
+    while (!possiblePaths.isEmpty()) {
+        Vector<string> path = possiblePaths.dequeue();
+        string lastWord = path[path.size() - 1];
+        if (lastWord == end) {
+            return path;
+        }
+
+        for (int i = 0; i < lastWord.length(); i++) {
+            char c = lastWord[i];
+            for (int j = 0; j < ALPHABET_SIZE; j++) {
+                lastWord[i] = LOWER_CASE_A + j; // How would I got about checking all other chars?
+
+                if (visited.contains(lastWord)) {
+                    continue;
+                }
+                if (!english.contains(lastWord)) {
+                    continue;
+                }
+
+                Vector<string> newPath = path;
+                newPath.add(lastWord);
+                visited.add(lastWord);
+                possiblePaths.enqueue(newPath);
+            }
+            lastWord[i] = c;
+        }
+    }
+
+    Vector<string> empty;
+    return empty;
 }
 
 static const string kEnglishLanguageDatafile = "dictionary.txt";
@@ -32,7 +74,8 @@ static void playWordLadder() {
         if (start.empty()) break;
         string end = getWord(english, "Please enter the destination word [return to quit]: ");
         if (end.empty()) break;
-        generateLadder(english, start, end);
+        Vector<string> ladder = generateLadder(english, start, end);
+        cout << ladder << endl;
     }
 }
 
