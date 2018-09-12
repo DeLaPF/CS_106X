@@ -5,15 +5,28 @@
  */
 
 #include <iostream>  // for cout
+#include <functional> // for function
 using namespace std;
 
 #include "console.h" // required of all files that contain the main function
-#include "simpio.h"  // for getLine
+#include "filelib.h"
 #include "gevents.h" // for mouse event detection
+#include "grid.h"
+#include "gwindow.h"
+#include "simpio.h"  // for getLine
 #include "strlib.h"
 
 #include "life-constants.h"  // for kMaxAge
 #include "life-graphics.h"   // for class LifeDisplay
+
+#define LONELY_THRESHOLD (1)
+#define STABLE_THRESHOLD (2)
+#define HOSPITABLE_THRESHOLD (3)
+#define OVERCROWDED_THRESHOLD (4)
+#define DEFAULT_WORLD_SIZE (25)
+#define FAST_ANIM (125)
+#define MEDIUM_ANIM (250)
+#define SLOW_ANIM (500)
 
 /**
  * Function: welcome
@@ -32,6 +45,305 @@ static void welcome() {
 }
 
 /**
+ * Function: hasFile
+ * -----------------
+ * Checks if the user has a file.
+ */
+static bool hasFile() {
+    if (getYesOrNo("Do you have a file in mind?")) {
+        return true;
+    }
+    cout << "A random file will be generated for you" << endl;
+    return false;
+}
+
+/**
+ * Function: getAnimSpeed
+ * -----------------
+ * Gets the speed that the user would like to run the animation at.
+ */
+static int getAnimSpeed() {
+    int speed;
+
+    cout << "How fast would you like the animation to run?" << endl;
+    cout << "\t(1) As fast as possible" << endl;
+    cout << "\t(2) A slight pause between each new generation" << endl;
+    cout << "\t(3) A slightly longer pause between each new generation" << endl;
+    cout << "\t(4) Fully manual, click for each new generation" << endl;
+
+    while (true) {
+        speed = getInteger();
+
+        if (speed >= 1 && speed <= 4) {
+            break;
+        } else {
+            cout << "Please enter a valid number between 1 and 4" << endl;
+        }
+    }
+
+    return speed;
+}
+
+/**
+ * Function: readConfigFile
+ * -----------------
+ * Takes in a user-created-file and creates a "world" array based on its contents.
+ */
+static void readConfigFile(Grid<int> &world) {
+    ifstream infile;
+    promptUserForFile(infile, "File?");
+    Vector<string> lines;
+    readEntireFile(infile, lines);
+    infile.close();
+
+    int i = 0;
+    while (true) {
+        if (lines[i][0] != '#') {
+            break;
+        }
+        i++;
+    }
+    int rows = stringToInteger(lines[i++]);
+    int cols = stringToInteger(lines[i++]);
+
+    world.resize(rows, cols);
+
+    for (int row = 0; i + row < lines.size(); row++) {
+        string rowLine = lines[i + row];
+        for (int col = 0; col < cols; col++) {
+            if (rowLine[col] == '-') {
+                world[row][col] = 0;
+            } else {
+                world[row][col] = 1;
+            }
+        }
+    }
+}
+
+/**
+ * Function: randGenWorld
+ * -----------------
+ * Randomly generates a 25*25 "world".
+ */
+static Grid<int> randGenWorld() {
+    Grid<int> world(DEFAULT_WORLD_SIZE, DEFAULT_WORLD_SIZE);
+    for (int r = 0; r < DEFAULT_WORLD_SIZE; r++) {
+        for (int c = 0; c < DEFAULT_WORLD_SIZE; c++) {
+            int cell = rand() % 2;
+            world[r][c] = cell;
+        }
+    }
+
+    return world;
+}
+
+/**
+ * Function: displayWorld
+ * -----------------
+ * Displays the "world" array.
+ */
+static void displayWorld(LifeDisplay &display, const Grid<int> &world) {
+    int rows = world.numRows();
+    int cols = world.numCols();
+
+    display.setDimensions(rows, cols);
+
+    for (int row = 0; row < rows; row++) {
+        for (int col = 0; col < cols; col++) {
+            int age = world[row][col];
+            display.drawCellAt(row, col, age);
+        }
+    }
+
+    display.repaint();
+}
+
+/**
+ * Function: isLonely
+ * -----------------
+ * Checks if a cell is lonely (has one or less neighbors).
+ */
+static bool isLonely(int neighbors) {
+    if (neighbors <= LONELY_THRESHOLD) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Function: isStable
+ * -----------------
+ * Checks if a cell is stable (has two neighbors).
+ */
+static bool isStable(int neighbors) {
+    if (neighbors == STABLE_THRESHOLD) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Function: isHospitable
+ * -----------------
+ * Checks if a space is hospitable (has three neighbors) for new, or old, life.
+ */
+static bool isHospitable(int neighbors) {
+    if (neighbors == HOSPITABLE_THRESHOLD) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Function: isOvercrowded
+ * -----------------
+ * Checks if a cell is overcrowded (has four or more neighbors).
+ */
+static bool isOvercrowded(int neighbors) {
+    if (neighbors >= OVERCROWDED_THRESHOLD) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Function: countNeighbors
+ * -----------------
+ * Counts the number of neighbors surrounding each given cell.
+ */
+static int countNeighbors(const Grid<int> &world, int r, int c) {
+    int neighbors = 0;
+    for (int row = r - 1; row <= r + 1; row++) {
+        for (int col = c - 1; col <= c + 1; col++) {
+            if (row == r && col == c) {
+                continue;
+            }
+            if (!world.inBounds(row, col)) {
+                continue;
+            }
+
+            if (world[row][col] > 0) {
+                neighbors++;
+            }
+        }
+    }
+
+    return neighbors;
+}
+
+/**
+ * Function: updateWorld
+ * --------------
+ * Updates the "world" array to the new generation (the new states of the cells).
+ */
+static Grid<int> updateWorld(const Grid<int> &world) {
+    int rows = world.numRows();
+    int cols = world.numCols();
+    Grid<int> upWorld = world;
+
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            int neighbors = countNeighbors(world, r, c);
+            if (isLonely(neighbors) || isOvercrowded(neighbors)) {
+                upWorld[r][c] = 0;
+            }
+            if (isStable(neighbors)) {
+                upWorld[r][c] += (world[r][c] > 0 ? 1 : 0);
+            }
+            if (isHospitable(neighbors)) {
+                upWorld[r][c]++;
+            }
+        }
+    }
+
+    return upWorld;
+}
+
+/**
+ * Function: areGridsEqual
+ * -----------------
+ * Compares the updating generation to see if they are stable or alternating.
+ */
+static bool areGridsEqual(const Grid<int> &g1, const Grid<int> &g2, const function<bool (int, int)> &isEqual) {
+    if (g1.numRows() != g2.numRows() || g1.numCols() != g2.numCols()) {
+        return false;
+    }
+
+    for (int r = 0; r < g1.numRows() - 1; r++) {
+        for (int c = 0; c < g1.numCols(); c++) {
+            if (!isEqual(g1[r][c], g2[r][c])) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Function: isStable
+ * -----------------
+ * Implementation of areGridsEqual to compare the updating generation to see if they are stable or alternating.
+ */
+static bool isStable(const Grid<int> &world) {
+    Grid<int> upWorld = updateWorld(world);
+    if (areGridsEqual(world, upWorld, [](int v1, int v2) {
+    return (v1 > 0 && v2 > 0) || (v1 == 0 && v2 == 0);
+    }) || areGridsEqual(world, updateWorld(upWorld), [](int v1, int v2) {
+        return (v1 > 0 && v2 > 0) || (v1 == 0 && v2 == 0);
+    })) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Function: runAnimation
+ * -----------------
+ * Runs the entire animation for the program.
+ */
+static void runAnimation(LifeDisplay &display, Grid<int> &world, int animSpeed) {
+    bool isManual = false;
+    displayWorld(display, world);
+
+    switch (animSpeed) {
+    case 1:
+        animSpeed = FAST_ANIM;
+        break;
+    case 2:
+        animSpeed = MEDIUM_ANIM;
+        break;
+    case 3:
+        animSpeed = SLOW_ANIM;
+        break;
+    case 4:
+        isManual = true;
+        break;
+    }
+
+    GEvent event;
+    GTimer timer(animSpeed);
+    timer.start();
+    while (true) {
+        if (isManual) {
+            event = waitForEvent(KEY_EVENT);
+        } else {
+            event = waitForEvent(TIMER_EVENT + MOUSE_EVENT);
+        }
+
+        if (isStable(world) || event.getEventType() == MOUSE_PRESSED) {
+            break;
+        }
+
+        if (event.getEventClass() == TIMER_EVENT || event.getEventClass() == KEY_EVENT) {
+            world = updateWorld(world);
+            displayWorld(display, world);
+        }
+    }
+    timer.stop();
+}
+
+/**
  * Function: main
  * --------------
  * Provides the entry point of the entire program.
@@ -40,5 +352,21 @@ int main() {
     LifeDisplay display;
     display.setTitle("Game of Life");
     welcome();
+    Grid<int> world;
+
+    while (true) {
+        if (hasFile()) {
+            readConfigFile(world);
+        } else {
+            world = randGenWorld();
+        }
+
+        runAnimation(display, world, getAnimSpeed());
+
+        if (!getYesOrNo("Would you like to run this program again?")) {
+            break;
+        }
+    }
+
     return 0;
 }
